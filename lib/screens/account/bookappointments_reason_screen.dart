@@ -1,20 +1,16 @@
-import 'package:cs_give/core/constants/app_constants.dart';
 import 'package:cs_give/core/theme/colors.dart';
 import 'package:cs_give/core/utils/common.dart';
 import 'package:cs_give/widgets/app_scaffold.dart';
 import 'package:cs_give/widgets/app_texts.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:nb_utils/nb_utils.dart';
 
 import '../../../config/colors.dart';
-import '../../../config/font_family.dart';
 import '../../../config/size_config.dart';
-import '../../../controller/book_appointment_controller.dart';
-import '../../../models/appointment_timelist.dart';
+import '../../controller/book_appointment_controller.dart';
+import 'bookappointments_final_screen.dart';
 
 class BookappointmentsReasonScreen extends StatelessWidget {
   final int appointmentTimeId;
@@ -22,14 +18,15 @@ class BookappointmentsReasonScreen extends StatelessWidget {
   final String appointmentReason = '';
 
   // Constructor
-  const BookappointmentsReasonScreen({
+  BookappointmentsReasonScreen({
     required this.appointmentTimeId,
     required this.date,
   });
+  final TextEditingController reasonController = TextEditingController();
 
+  final BookAppointmentController c = BookAppointmentController();
   @override
   Widget build(BuildContext context) {
-
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
     return AppScaffold(
@@ -109,10 +106,13 @@ class BookappointmentsReasonScreen extends StatelessWidget {
                                     borderRadius: BorderRadius.circular(8),
                                     border: Border.all(color: ColorFile.appColor),
                                   ),
-                                  child: const Padding(
+                                  child:  Padding(
                                     padding: EdgeInsets.all(8.0),
                                     child: TextField(
                                       maxLines: 5,
+                                      onChanged: (value) {
+                                        c.appointmentReason = value;
+                                      },
                                       decoration: InputDecoration(
                                         hintText: 'Enter reason here...',
                                         border: InputBorder.none,
@@ -123,7 +123,17 @@ class BookappointmentsReasonScreen extends StatelessWidget {
                               ],
                             ),
                           ),
-                          Row(
+                          GestureDetector(
+                            onTap: () async {
+                              // Set reason to "No reason specified"
+                              String reason = 'No reason specified';
+                              // Call the submitAppointmentRequest function
+                              c.submitApointmentRequest(appointmentTimeId.toString(), date,reason);
+                              if (c.appointMentCompleted) {
+                                  BookappointmentsSuccessScreen().launch(context);
+                              }
+                            },
+                            child: Row(
                               mainAxisAlignment: MainAxisAlignment.end,
                               children: [
                                 Text(
@@ -135,7 +145,8 @@ class BookappointmentsReasonScreen extends StatelessWidget {
                                   ),
                                   textAlign: TextAlign.end,
                                 )
-                              ]
+                              ],
+                            ),
                           ),
                         ],
 
@@ -143,9 +154,6 @@ class BookappointmentsReasonScreen extends StatelessWidget {
                 ],
               ),
             ),
-            Text('Appointment Time ID: $appointmentTimeId'),
-            Text('Date: $date'),
-            Text('Appointment Reason: $appointmentReason'),
             Positioned(
               bottom: screenHeight - (screenHeight * 0.5), // Position it at 10% from the bottom of the screen
               child: AppButton(
@@ -158,10 +166,22 @@ class BookappointmentsReasonScreen extends StatelessWidget {
                 color: true ? kSecondaryColor : appTextSecondaryColor, // Change color based on time selection
                 textColor: kPrimaryColor,
                 width: MediaQuery.of(context).size.width * 0.8,
-                onTap: () {
-
+                onTap: () async {
+                  String reason = reasonController.text.trim();
+                  // Get the text from the TextField
+                  if (c.appointmentReason.isNotEmpty) {
+                    reason = c.appointmentReason;
+                  } else {
+                    showError('Please enter a reason for the appointment');
+                    return;
+                  }
+                  // Call the submitAppointmentRequest function
+                 c.submitApointmentRequest(appointmentTimeId.toString(), date, reason, );
+                  if(c.appointMentCompleted){
+                      BookappointmentsSuccessScreen().launch(context);
+                      c.appointMentCompleted= false;
+                  }
                 },
-
               )
             ),
             SizedBox(height: SizeFile.height5.h),
