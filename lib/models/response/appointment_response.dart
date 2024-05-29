@@ -1,7 +1,7 @@
 class AppointmentResponse {
   final String statusCode;
   final String message;
-  final String reason;
+  final String? reason;
 
   AppointmentResponse({
     required this.statusCode,
@@ -11,8 +11,8 @@ class AppointmentResponse {
 
   factory AppointmentResponse.fromJson(Map<String, dynamic> json) {
     return AppointmentResponse(
-      statusCode: json['status_code'],
-      message: json['message'],
+      statusCode: json['status_code'] ?? '',
+      message: json['message'] ?? '',
       reason: json['reason'],
     );
   }

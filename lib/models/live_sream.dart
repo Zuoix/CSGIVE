@@ -1,24 +1,5 @@
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 
-class LiveStreamService {
-  final String _baseUrl = 'https://yourapi.com'; // Replace with your actual base URL
-
-  Future<List<LiveStream>> getLiveStreams() async {
-    final response = await http.get(Uri.parse('$_baseUrl/livestreams'));
-    if (response.statusCode == 200) {
-      var data = json.decode(response.body);
-      List<LiveStream> liveStreams = (data['data'] as List)
-          .map((e) => LiveStream.fromJson(e))
-          .toList();
-      return liveStreams;
-    } else {
-      throw Exception('Failed to load live streams');
-    }
-  }
-}
-
-class LiveStream {
+class LiveStreamModel {
   final int id;
   final int churchId;
   final String title;
@@ -28,7 +9,7 @@ class LiveStream {
   final DateTime createdAt;
   final DateTime updatedAt;
 
-  LiveStream({
+  LiveStreamModel({
     required this.id,
     required this.churchId,
     required this.title,
@@ -39,8 +20,8 @@ class LiveStream {
     required this.updatedAt,
   });
 
-  factory LiveStream.fromJson(Map<String, dynamic> json) {
-    return LiveStream(
+  factory LiveStreamModel.fromJson(Map<String, dynamic> json) {
+    return LiveStreamModel(
       id: json['id'],
       churchId: json['churchId'],
       title: json['title'],

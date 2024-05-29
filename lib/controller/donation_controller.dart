@@ -6,25 +6,34 @@ import 'package:cs_give/core/constants/app_constants.dart';
 import 'package:cs_give/core/utils/common.dart';
 import 'package:cs_give/models/donation_history_data.dart';
 import 'package:cs_give/models/donation_type_data.dart';
+import 'package:cs_give/models/request/initpayment_request.dart';
+import 'package:cs_give/models/response/initpayment_response.dart';
 import 'package:cs_give/models/stock_request.dart';
 import 'package:cs_give/screens/home_screen.dart';
 import 'package:cs_give/screens/payments/mobile_money_payment.dart';
 import 'package:cs_give/screens/payments/stripe_payment.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_paypal/flutter_paypal.dart';
 import 'package:flutter_paypal/flutter_paypal.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart';
 import 'package:intl/intl.dart';
 import 'package:nb_utils/nb_utils.dart';
+import 'package:paypal_sdk_flutter/paypal_sdk_flutter.dart';
 import 'package:pinput/pinput.dart';
 import 'package:uuid/uuid.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../config/string_config.dart';
 import '../env.dart';
+import '../models/request/updatepayment_request.dart';
 import '../models/response/donationhistory_response.dart';
 import '../services/paypal_services.dart';
+import 'package:flutter_paypal/flutter_paypal.dart';
+
+
 
 final donationAmounts = [10, 20, 50, 100, 500, 1000];
 final paymentMethods = ['Paypal', 'Card', 'ACH', 'MoMo'];
@@ -57,8 +66,11 @@ class DonationController extends GetxController {
 
   String? selectedPaymentMethod;
   String? selectedFrequency;
-  String? selectedDonationType;
+  DonationType? selectedDonationType;
 
+  List<InitPaymentResponse> donationPayment = [];
+
+  String? donationRef;
   List<DonationType> donationTypes = [];
 
   List<DonationhistoryResponse> donationHistory = [];
@@ -97,14 +109,17 @@ class DonationController extends GetxController {
     update();
   }
 
-  void selectDonationType(String? val) {
-    selectedDonationType = val.validate();
-    update();
+  void selectDonationType(DonationType? val) {
+    if(val != null){
+      selectedDonationType = val;
+      update();
+    }
   }
 
   void donate() {
     checkLogin(() async {
       final amount = parseCurrency(amountCont.text);
+
 
       if (amount <= 0) {
         showError('The amount must be greater than 0');
@@ -118,132 +133,128 @@ class DonationController extends GetxController {
         showError('Please select a frequency');
         return;
       }
-      if (selectedDonationType == null) {
-        showError('Please select a donation type');
-        return;
-      }else if (selectedPaymentMethod == 'Paypal'){
-        UsePaypal(
-            sandboxMode: true,
-            clientId: StringConfig.clientId,
-            secretKey: StringConfig.secretKey,
-            returnURL: StringConfig.returnURL,
-            cancelURL: StringConfig.cancelURL,
-            transactions: const [
-              {
-                StringConfig.amountText: {
-                  StringConfig.totalText: StringConfig.ten,
-                  StringConfig.currency: StringConfig.currencyCode,
-                  StringConfig.details: {
-                    StringConfig.subtotal: StringConfig.ten,
-                    StringConfig.shipping: StringConfig.zero,
-                    StringConfig.shippingDiscount: 0
-                  }
-                },
-                StringConfig.des:
-                StringConfig.thePaymentTransactionDescription,
-                StringConfig.itemList: {
-                  StringConfig.items: [
-                    {
-                      StringConfig.name: StringConfig.demoProduct,
-                      StringConfig.quantity: 1,
-                      StringConfig.price: StringConfig.ten,
-                      StringConfig.currency: StringConfig.currencyCode
-                    }
-                  ],
-                  StringConfig.shippingAddress: {
-                    StringConfig.recipientName: StringConfig.janeFoster,
-                    StringConfig.line1: StringConfig.travisCountry,
-                    StringConfig.line2: "",
-                    StringConfig.city: StringConfig.austin,
-                    StringConfig.countryCode: StringConfig.us,
-                    StringConfig.postalCode: StringConfig.postalCodeNo,
-                    StringConfig.phone: StringConfig.phoneNo,
-                    StringConfig.state: StringConfig.texas
-                  },
-                }
-              }
-            ],
-            note: StringConfig.contactUsFor,
-            onSuccess: (Map params) async {},
-            onError: (error) {},
-            onCancel: (params) {});
-      }else if (selectedPaymentMethod == 'Paypals') {
-        try {
-          final transactions = {
-            "intent": "sale",
-            "payer": {"payment_method": "paypal"},
-            "transactions": [
-              {
-                "amount": {"total": amount.toString(), "currency": "USD"},
-                "description": "Donation",
-              }
-            ],
-            "redirect_urls": {
-              "return_url": ApiRoutes.paypalReturnURL,
-              "cancel_url": ApiRoutes.paypalCancelURL,
-            },
-          };
 
-          final payPalService = PaypalServices();
-          final accessToken = await payPalService.getAccessToken();
-          if (accessToken != null) {
-            final res = await payPalService.createPaypalPayment(transactions, accessToken);
-            if (res != null && res['approvalUrl'] != null) {
-              controller = WebViewController()
-                ..setJavaScriptMode(JavaScriptMode.unrestricted)
-                ..setNavigationDelegate(
-                  NavigationDelegate(
-                    onNavigationRequest: (NavigationRequest request) {
-                      // Handle return URL
-                      if (request.url.contains(ApiRoutes.paypalReturnURL)) {
-                        final uri = Uri.parse(request.url);
-                        final payerId = uri.queryParameters['PayerID'];
-                        if (payerId != null) {
-                          payPalService.executePayment(res['executeUrl']!, payerId, accessToken).then((paymentId) {
-                            if (paymentId != null) {
-                              showSuccess('Payment completed successfully');
-                              Get.offAll(() => const HomeScreen());
-                            } else {
-                              showError('Payment failed');
-                              Get.back();
-                            }
-                          });
-                        }
+        if (selectedDonationType == null) {
+          showError('Please select a donation type');
+          return;
+        }else if (selectedPaymentMethod == 'Paypal'){
+          if(await initPayment()){
+            UsePaypal(
+                sandboxMode: true,
+                clientId: StringConfig.clientId,
+                secretKey: StringConfig.secretKey,
+                returnURL: StringConfig.returnURL,
+                cancelURL: StringConfig.cancelURL,
+                transactions: const [
+                  {
+                    StringConfig.amountText: {
+                      StringConfig.totalText: StringConfig.ten,
+                      StringConfig.currency: StringConfig.currencyCode,
+                      StringConfig.details: {
+                        StringConfig.subtotal: StringConfig.ten,
+                        StringConfig.shipping: StringConfig.zero,
+                        StringConfig.shippingDiscount: 0
                       }
-                      // Handle cancel URL
-                      else if (request.url.contains(ApiRoutes.paypalCancelURL)) {
-                        showError('Payment cancelled');
-                        Get.back();
-                      }
-                      return NavigationDecision.navigate;
                     },
-                  ),
-                );
-              // Load the approval URL in WebView
-              if (res['approvalUrl'] != null) {
-                controller!.loadRequest(Uri.parse(res['approvalUrl']!));
-                update();
-              }
-              //Get.to(() => PayPalWebViewScreen(approvalUrl: res['approvalUrl']!, executeUrl: res['executeUrl']!, accessToken: accessToken));
-
-            } else {
-              showError('Failed to create PayPal payment');
-            }
-          } else {
-            showError('Failed to get PayPal access token');
+                    StringConfig.des:
+                    StringConfig.thePaymentTransactionDescription,
+                    StringConfig.itemList: {
+                      StringConfig.items: [
+                        {
+                          StringConfig.name: StringConfig.demoProduct,
+                          StringConfig.quantity: 1,
+                          StringConfig.price: StringConfig.ten,
+                          StringConfig.currency: StringConfig.currencyCode
+                        }
+                      ],
+                      StringConfig.shippingAddress: {
+                        StringConfig.recipientName: StringConfig.janeFoster,
+                        StringConfig.line1: StringConfig.travisCountry,
+                        StringConfig.line2: "",
+                        StringConfig.city: StringConfig.austin,
+                        StringConfig.countryCode: StringConfig.us,
+                        StringConfig.postalCode: StringConfig.postalCodeNo,
+                        StringConfig.phone: StringConfig.phoneNo,
+                        StringConfig.state: StringConfig.texas
+                      },
+                    }
+                  }
+                ],
+                note: StringConfig.contactUsFor,
+                onSuccess: (Map params) async {},
+                onError: (error) {},
+                onCancel: (params) {});
           }
-        } catch (e) {
-          showError('An error occurred: $e');
+        } else if (selectedPaymentMethod == 'Card')  {
+          if(await initPayment()){
+            stripePaymentHandle.stripeMakePayment(parseCurrencyString(amountCont.text), "USD");
+          }
+        }else if (selectedPaymentMethod == 'MoMo'){
+          if(await initPayment()){
+            createRequest();
+            Get.to(() => const MobileMoneyPayment());
+          }
+        } else {
+          showError('Selected payment method is not supported yet');
         }
-      } else if (selectedPaymentMethod == 'Card')  {
 
-        stripePaymentHandle.stripeMakePayment(parseCurrencyString(amountCont.text), "USD");
-      } else {
-        showError('Selected payment method is not supported yet');
-      }
     });
   }
 
+
+  Future<bool> initPayment() async {
+    final request = InitPaymentRequest(
+      amount: amountCont.text,
+      donationType: selectedDonationType!.id.toString(),
+      paymentMode: selectedPaymentMethod ?? 'Card',
+    );
+    var donationPayment = await donationServices.initiatePaymentIntent(request);
+    if(donationPayment.paymentUrl.isNotEmpty){
+      donationRef = donationPayment.reference;
+      update();
+      return true;
+    }else{
+      showError('Could not initialise payment.');
+      return false;
+    }
+  }
+
+
+  Future<bool> updatePaymentStatus(String? reference, String status, String data, String statusMessage) async {
+    if (reference == null) {
+      showError('Donation reference is not set');
+      return false;
+    }
+    final request = UpdatePaymentRequest(
+      status: status,
+      data: data,
+      statusMessage: statusMessage,
+    );
+    var donationPaymentStatus = await donationServices.updatePaymentIntent(request, reference: reference);
+    if(donationPaymentStatus.message != "Not found"){
+      return true;
+    }else{
+      showError('Payment not found for update.');
+      return false;
+    }
+  }
+
+
+
+  Future<void> checkPaymentStatus(String? reference) async {
+    try {
+      final status = await donationServices.checkPaymentStatus(reference: reference);
+      //removeKey(LocalKeys.kDonateTo);
+      if (status.status == 'COMPLETED') {
+        controller = null;
+        showSuccess('Congratulations! Your payment has been completed.');
+        Get.offAll(() => const HomeScreen());
+      }
+    } catch (e) {
+      controller = null;
+      Get.back();
+    }
+  }
 
   void donater() {
     checkLogin(() async {
@@ -329,9 +340,73 @@ class DonationController extends GetxController {
             }
           }
         }
-      }  else {
-        //showSuccess(parseCurrencyString(amountCont.text));
-        stripePaymentHandle.stripeMakePayment(parseCurrencyString(amountCont.text), "USD");
+      }else if (selectedPaymentMethod == 'Paypals') {
+        try {
+          final transactions = {
+            "intent": "sale",
+            "payer": {"payment_method": "paypal"},
+            "transactions": [
+              {
+                "amount": {"total": amount.toString(), "currency": "USD"},
+                "description": "Donation",
+              }
+            ],
+            "redirect_urls": {
+              "return_url": ApiRoutes.paypalReturnURL,
+              "cancel_url": ApiRoutes.paypalCancelURL,
+            },
+          };
+          final payPalService = PaypalServices();
+          final accessToken = await payPalService.getAccessToken();
+          if (accessToken != null) {
+            final res = await payPalService.createPaypalPayment(transactions, accessToken);
+            if (res != null && res['approvalUrl'] != null) {
+              controller = WebViewController()
+                ..setJavaScriptMode(JavaScriptMode.unrestricted)
+                ..setNavigationDelegate(
+                  NavigationDelegate(
+                    onNavigationRequest: (NavigationRequest request) {
+                      // Handle return URL
+                      if (request.url.contains(ApiRoutes.paypalReturnURL)) {
+                        final uri = Uri.parse(request.url);
+                        final payerId = uri.queryParameters['PayerID'];
+                        if (payerId != null) {
+                          payPalService.executePayment(res['executeUrl']!, payerId, accessToken).then((paymentId) {
+                            if (paymentId != null) {
+                              showSuccess('Payment completed successfully');
+                              Get.offAll(() => const HomeScreen());
+                            } else {
+                              showError('Payment failed');
+                              Get.back();
+                            }
+                          });
+                        }
+                      }
+                      // Handle cancel URL
+                      else if (request.url.contains(ApiRoutes.paypalCancelURL)) {
+                        showError('Payment cancelled');
+                        Get.back();
+                      }
+                      return NavigationDecision.navigate;
+                    },
+                  ),
+                );
+              // Load the approval URL in WebView
+              if (res['approvalUrl'] != null) {
+                controller!.loadRequest(Uri.parse(res['approvalUrl']!));
+                update();
+              }
+              //Get.to(() => PayPalWebViewScreen(approvalUrl: res['approvalUrl']!, executeUrl: res['executeUrl']!, accessToken: accessToken));
+
+            } else {
+              showError('Failed to create PayPal payment');
+            }
+          } else {
+            showError('Failed to get PayPal access token');
+          }
+        } catch (e) {
+          showError('An error occurred: $e');
+        }
       }
     });
   }
@@ -340,6 +415,7 @@ class DonationController extends GetxController {
     donationTypes = await donationServices.getDonationTypes();
     update();
   }
+
 
   Future<void> getDonationHistory() async {
     try {
@@ -375,7 +451,7 @@ class DonationController extends GetxController {
         depositId: const Uuid().v4(),
         statementDescription: 'Donation', // TODO: Change to Church Name
         returnUrl: ApiRoutes.baseUrl,
-        reason: selectedDonationType ?? 'Donation',
+        reason: selectedDonationType?.donationType ?? 'Donation',
         amount: amountCont.text,
       );
 

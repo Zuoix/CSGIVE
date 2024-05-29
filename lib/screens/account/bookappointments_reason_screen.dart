@@ -4,6 +4,7 @@ import 'package:cs_give/widgets/app_scaffold.dart';
 import 'package:cs_give/widgets/app_texts.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:get/get_state_manager/src/rx_flutter/rx_obx_widget.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:nb_utils/nb_utils.dart';
 
@@ -110,8 +111,9 @@ class BookappointmentsReasonScreen extends StatelessWidget {
                                     padding: EdgeInsets.all(8.0),
                                     child: TextField(
                                       maxLines: 5,
+                                      controller: reasonController,
                                       onChanged: (value) {
-                                        c.appointmentReason = value;
+                                        c.appointmentReason.value = value;
                                       },
                                       decoration: InputDecoration(
                                         hintText: 'Enter reason here...',
@@ -129,7 +131,7 @@ class BookappointmentsReasonScreen extends StatelessWidget {
                               String reason = 'No reason specified';
                               // Call the submitAppointmentRequest function
                               c.submitApointmentRequest(appointmentTimeId.toString(), date,reason);
-                              if (c.appointMentCompleted) {
+                              if (c.appointMentCompleted.value) {
                                   BookappointmentsSuccessScreen().launch(context);
                               }
                             },
@@ -154,36 +156,35 @@ class BookappointmentsReasonScreen extends StatelessWidget {
                 ],
               ),
             ),
-            Positioned(
-              bottom: screenHeight - (screenHeight * 0.5), // Position it at 10% from the bottom of the screen
-              child: AppButton(
-                text: 'Book appointment',
-                textStyle: boldText(
-                  color: white,
-                  weight: FontWeight.w600,
-                  size: 16,
+            Obx(() {
+              if (c.appointMentCompleted.value) {
+                Future.delayed(Duration.zero, () {
+                  BookappointmentsSuccessScreen().launch(context);
+                });
+              }
+              return Positioned(
+                bottom: screenHeight - (screenHeight * 0.5),
+                child: AppButton(
+                  text: 'Book appointment',
+                  textStyle: boldText(
+                    color: white,
+                    weight: FontWeight.w600,
+                    size: 16,
+                  ),
+                  color: true ? kSecondaryColor : appTextSecondaryColor,
+                  textColor: kPrimaryColor,
+                  width: MediaQuery.of(context).size.width * 0.8,
+                  onTap: () async {
+                    String reason = reasonController.text.trim();
+                    if (reason.isEmpty) {
+                      showError('Please enter a reason for the appointment');
+                      return;
+                    }
+                    await c.submitApointmentRequest(appointmentTimeId.toString(), date, reason);
+                  },
                 ),
-                color: true ? kSecondaryColor : appTextSecondaryColor, // Change color based on time selection
-                textColor: kPrimaryColor,
-                width: MediaQuery.of(context).size.width * 0.8,
-                onTap: () async {
-                  String reason = reasonController.text.trim();
-                  // Get the text from the TextField
-                  if (c.appointmentReason.isNotEmpty) {
-                    reason = c.appointmentReason;
-                  } else {
-                    showError('Please enter a reason for the appointment');
-                    return;
-                  }
-                  // Call the submitAppointmentRequest function
-                 c.submitApointmentRequest(appointmentTimeId.toString(), date, reason, );
-                  if(c.appointMentCompleted){
-                      BookappointmentsSuccessScreen().launch(context);
-                      c.appointMentCompleted= false;
-                  }
-                },
-              )
-            ),
+              );
+            }),
             SizedBox(height: SizeFile.height5.h),
           ],
         ));
