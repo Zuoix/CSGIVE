@@ -1,10 +1,7 @@
-import 'dart:convert';
-
 import 'package:cs_give/app.dart';
 import 'package:cs_give/core/constants/api_routes.dart';
 import 'package:cs_give/core/constants/app_constants.dart';
 import 'package:cs_give/core/utils/common.dart';
-import 'package:cs_give/models/donation_history_data.dart';
 import 'package:cs_give/models/donation_type_data.dart';
 import 'package:cs_give/models/request/initpayment_request.dart';
 import 'package:cs_give/models/response/initpayment_response.dart';
@@ -12,26 +9,17 @@ import 'package:cs_give/models/stock_request.dart';
 import 'package:cs_give/screens/home_screen.dart';
 import 'package:cs_give/screens/payments/mobile_money_payment.dart';
 import 'package:cs_give/screens/payments/stripe_payment.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_paypal/flutter_paypal.dart';
-import 'package:flutter_paypal/flutter_paypal.dart';
-import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:get/get.dart';
-import 'package:http/http.dart';
-import 'package:intl/intl.dart';
 import 'package:nb_utils/nb_utils.dart';
-import 'package:paypal_sdk_flutter/paypal_sdk_flutter.dart';
-import 'package:pinput/pinput.dart';
 import 'package:uuid/uuid.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../config/string_config.dart';
-import '../env.dart';
 import '../models/request/updatepayment_request.dart';
 import '../models/response/donationhistory_response.dart';
 import '../services/paypal_services.dart';
-import 'package:flutter_paypal/flutter_paypal.dart';
 
 
 
@@ -116,6 +104,7 @@ class DonationController extends GetxController {
     }
   }
 
+
   void donate() {
     checkLogin(() async {
       final amount = parseCurrency(amountCont.text);
@@ -139,51 +128,52 @@ class DonationController extends GetxController {
           return;
         }else if (selectedPaymentMethod == 'Paypal'){
           if(await initPayment()){
-            UsePaypal(
-                sandboxMode: true,
-                clientId: StringConfig.clientId,
-                secretKey: StringConfig.secretKey,
-                returnURL: StringConfig.returnURL,
-                cancelURL: StringConfig.cancelURL,
-                transactions: const [
-                  {
-                    StringConfig.amountText: {
-                      StringConfig.totalText: StringConfig.ten,
-                      StringConfig.currency: StringConfig.currencyCode,
-                      StringConfig.details: {
-                        StringConfig.subtotal: StringConfig.ten,
-                        StringConfig.shipping: StringConfig.zero,
-                        StringConfig.shippingDiscount: 0
-                      }
-                    },
-                    StringConfig.des:
-                    StringConfig.thePaymentTransactionDescription,
-                    StringConfig.itemList: {
-                      StringConfig.items: [
-                        {
-                          StringConfig.name: StringConfig.demoProduct,
-                          StringConfig.quantity: 1,
-                          StringConfig.price: StringConfig.ten,
-                          StringConfig.currency: StringConfig.currencyCode
-                        }
-                      ],
-                      StringConfig.shippingAddress: {
-                        StringConfig.recipientName: StringConfig.janeFoster,
-                        StringConfig.line1: StringConfig.travisCountry,
-                        StringConfig.line2: "",
-                        StringConfig.city: StringConfig.austin,
-                        StringConfig.countryCode: StringConfig.us,
-                        StringConfig.postalCode: StringConfig.postalCodeNo,
-                        StringConfig.phone: StringConfig.phoneNo,
-                        StringConfig.state: StringConfig.texas
-                      },
+            Get.to(() => UsePaypal(
+              sandboxMode: true,
+              clientId: StringConfig.clientId,
+              secretKey: StringConfig.secretKey,
+              returnURL: StringConfig.returnURL,
+              cancelURL: StringConfig.cancelURL,
+              transactions: const [
+                {
+                  StringConfig.amountText: {
+                    StringConfig.totalText: StringConfig.ten,
+                    StringConfig.currency: StringConfig.currencyCode,
+                    StringConfig.details: {
+                      StringConfig.subtotal: StringConfig.ten,
+                      StringConfig.shipping: StringConfig.zero,
+                      StringConfig.shippingDiscount: 0
                     }
+                  },
+                  StringConfig.des:
+                  StringConfig.thePaymentTransactionDescription,
+                  StringConfig.itemList: {
+                    StringConfig.items: [
+                      {
+                        StringConfig.name: StringConfig.demoProduct,
+                        StringConfig.quantity: 1,
+                        StringConfig.price: StringConfig.ten,
+                        StringConfig.currency: StringConfig.currencyCode
+                      }
+                    ],
+                    StringConfig.shippingAddress: {
+                      StringConfig.recipientName: StringConfig.janeFoster,
+                      StringConfig.line1: StringConfig.travisCountry,
+                      StringConfig.line2: "",
+                      StringConfig.city: StringConfig.austin,
+                      StringConfig.countryCode: StringConfig.us,
+                      StringConfig.postalCode: StringConfig.postalCodeNo,
+                      StringConfig.phone: StringConfig.phoneNo,
+                      StringConfig.state: StringConfig.texas
+                    },
                   }
-                ],
-                note: StringConfig.contactUsFor,
-                onSuccess: (Map params) async {},
-                onError: (error) {},
-                onCancel: (params) {});
+                }
+              ],
+              note: StringConfig.contactUsFor,
+              onSuccess: (Map params) async {},
+              onError: (error) {},
+              onCancel: (params) {},
+            ));
           }
         } else if (selectedPaymentMethod == 'Card')  {
           if(await initPayment()){
@@ -437,7 +427,7 @@ class DonationController extends GetxController {
         return (donation.createdAt.isAfter(firstDayOfLastMonth) || donation.createdAt.isAtSameMomentAs(firstDayOfLastMonth))
             && donation.createdAt.isBefore(firstDayOfThisMonth);
       }).toList());
-     // donationHistory.assignAll(donations);
+      donationHistory.assignAll(donations);
 
     } catch (e) {
       print("Error fetching donation history: $e");

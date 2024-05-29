@@ -6,9 +6,13 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:nb_utils/nb_utils.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:printing/printing.dart';
 
 import '../../models/response/donationhistory_response.dart';
 import '../../widgets/app_texts.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'dart:io';
 
 class DonationhistoryScreen extends StatefulWidget {
   const DonationhistoryScreen({super.key});
@@ -18,11 +22,83 @@ class DonationhistoryScreen extends StatefulWidget {
 }
 
 class _DonationScreenState extends State<DonationhistoryScreen> {
+  DateTime? _startDate;
+  DateTime? _endDate;
   @override
   void initState() {
     super.initState();
 
     Get.put(DonationController());
+  }
+
+  Future<void> _createPdf(List<DonationhistoryResponse> donations) async {
+    final pdf = pw.Document();
+
+    pdf.addPage(
+      pw.Page(
+        build: (pw.Context context) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text('Donation History', style: pw.TextStyle(fontSize: 24)),
+              pw.SizedBox(height: 20),
+              ...donations.map((donation) {
+                return pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text('Type: ${donation.donationType}'),
+                    pw.Text('Date: ${DateFormat('MMMM d, yyyy').format(donation.createdAt)}'),
+                    pw.Text('Status: ${donation.statusMessage}'),
+                    pw.Text('Amount: \$${donation.amount}'),
+                    if (donation.paymentReference != null)
+                      pw.Text('Reference: ${donation.paymentReference}'),
+                    pw.SizedBox(height: 10),
+                  ],
+                );
+              }).toList(),
+            ],
+          );
+        },
+      ),
+    );
+
+    final output = await getTemporaryDirectory();
+    final file = File('${output.path}/donation_history.pdf');
+    await file.writeAsBytes(await pdf.save());
+
+    // To display the PDF in a viewer or to share it
+    await Printing.sharePdf(
+      bytes: await pdf.save(),
+      filename: 'donation_history.pdf',
+    );
+  }
+
+  Future<void> _selectDateRange(BuildContext context) async {
+    final DateTime? pickedStartDate = await showDatePicker(
+      context: context,
+      initialDate: _startDate ?? DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+    );
+
+    if (pickedStartDate != null) {
+      showSuccess('Now pick end date');
+      final DateTime? pickedEndDate = await showDatePicker(
+        context: context,
+        initialDate: _endDate ?? pickedStartDate,
+        firstDate: pickedStartDate,
+        lastDate: DateTime.now(),
+      );
+
+      if (pickedEndDate != null) {
+        setState(() {
+          _startDate = pickedStartDate;
+          _endDate = pickedEndDate;
+        });
+
+        // Perform any actions based on the selected date range
+      }
+    }
   }
 
   @override
@@ -31,8 +107,16 @@ class _DonationScreenState extends State<DonationhistoryScreen> {
     final screenWidth = MediaQuery.of(context).size.width;
     final rectangleWidthPercentage = 0.8; // 80% of screen width
 
+
     return GetBuilder<DonationController>(
       builder: (c) {
+        List<DonationhistoryResponse> filteredDonations = [];
+      if (_startDate != null && _endDate != null) {
+        filteredDonations = c.donationsThisMonth.where((donation) {
+          return (donation.createdAt.isAfter(_startDate!)   || donation.createdAt.isAtSameMomentAs(_startDate!) ) && (donation.createdAt.isBefore(_endDate!)   || donation.createdAt.isAtSameMomentAs(_endDate!));
+        }).toList();
+      }
+
         return AppScaffold(
           appBar: AppBar(
             toolbarHeight: getHeaderSize(context),
@@ -84,54 +168,125 @@ class _DonationScreenState extends State<DonationhistoryScreen> {
           body: SafeArea(
             child: AnimatedScrollView(
               children: [
-                20.height,
-                Text(
-                  'This month',
-                  style: boldText(
-                      weight: FontWeight.w600, size: 22, color: black),
-                  textAlign: TextAlign.center,
-                ),
-                if (c.donationsThisMonth.isEmpty)
-                  Center(
-                    child: Text(
-                      'No donations this month',
-                      style: boldText(
-                          weight: FontWeight.w400, size: 18, color: Colors.grey),
-                      textAlign: TextAlign.center,
+                SizedBox(height: 25),
+                Row(
+                  children: [
+
+                    ElevatedButton(
+                      onPressed: ()  {
+                        showSuccess('Pick start date');
+                        _selectDateRange(context);
+                      },
+                      child: Text('Select Date Range'),
                     ),
+                    SizedBox(width: 20),
+                    ElevatedButton(
+                      onPressed: () async {
+
+                        setLoading(true);
+                        List<DonationhistoryResponse> donationsToExport;
+                        if (_startDate != null && _endDate != null) {
+                          donationsToExport = c.donationsThisMonth.where((donation) {
+                            return (donation.createdAt.isAfter(_startDate!)   || donation.createdAt.isAtSameMomentAs(_startDate!) ) && (donation.createdAt.isBefore(_endDate!)   || donation.createdAt.isAtSameMomentAs(_endDate!));
+                          }).toList();
+                        } else {
+                          donationsToExport = c.donationHistory;
+                        }
+                        await _createPdf(donationsToExport);
+                        setLoading(false);
+                      },
+                      child: Text('Download as PDF'),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 20),
+                if (_startDate != null && _endDate != null)
+                  Column(
+                    children: [
+                      Text(
+                        'Selected Date Range: ${_startDate!.toString().substring(0, 10)} - ${_endDate!.toString().substring(0, 10)}',
+                        style: TextStyle(fontSize: 16),
+                      ),
+                      20.height,
+                      Text(
+                        'Donations within selected date range',
+                        style: boldText(
+                            weight: FontWeight.w600, size: 22, color: black),
+                        textAlign: TextAlign.center,
+                      ),
+                      20.height,
+                      if (filteredDonations.isEmpty)
+                        Center(
+                          child: Text(
+                            'No donations within selected date range',
+                            style: boldText(
+                                weight: FontWeight.w400, size: 18, color: Colors.grey),
+                            textAlign: TextAlign.center,
+                          ),
+                        )
+                      else
+                        ...filteredDonations.map((donation) {
+                          return DonationTile(
+                            screenWidth: screenWidth,
+                            rectangleWidthPercentage: rectangleWidthPercentage,
+                            donation: donation,
+                          );
+                        }).toList()
+                    ],
                   )
                 else
-                ...c.donationsThisMonth.map((donation) {
-                  return DonationTile(
-                    screenWidth: screenWidth,
-                    rectangleWidthPercentage: rectangleWidthPercentage,
-                    donation: donation,
-                  );
-                }).toList(),
-                20.height,
-                Text(
-                  'Last month',
-                  style: boldText(
-                      weight: FontWeight.w600, size: 22, color: black),
-                  textAlign: TextAlign.center,
-                ),
-                if (c.donationsLastMonth.isEmpty)
-                  Center(
-                    child: Text(
-                      'No donations last month',
-                      style: boldText(
-                          weight: FontWeight.w400, size: 18, color: Colors.grey),
-                      textAlign: TextAlign.center,
-                    ),
+                  Column(
+                    children: [
+
+                      Text(
+                        'This month',
+                        style: boldText(
+                            weight: FontWeight.w600, size: 22, color: black),
+                        textAlign: TextAlign.center,
+                      ),
+                      if (c.donationsThisMonth.isEmpty)
+                        Center(
+                          child: Text(
+                            'No donations this month',
+                            style: boldText(
+                                weight: FontWeight.w400, size: 18, color: Colors.grey),
+                            textAlign: TextAlign.center,
+                          ),
+                        )
+                      else
+                        ...c.donationsThisMonth.map((donation) {
+                          return DonationTile(
+                            screenWidth: screenWidth,
+                            rectangleWidthPercentage: rectangleWidthPercentage,
+                            donation: donation,
+                          );
+                        }).toList(),
+                      20.height,
+                      Text(
+                        'Last month',
+                        style: boldText(
+                            weight: FontWeight.w600, size: 22, color: black),
+                        textAlign: TextAlign.center,
+                      ),
+                      if (c.donationsLastMonth.isEmpty)
+                        Center(
+                          child: Text(
+                            'No donations last month',
+                            style: boldText(
+                                weight: FontWeight.w400, size: 18, color: Colors.grey),
+                            textAlign: TextAlign.center,
+                          ),
+                        )
+                      else
+                        ...c.donationsLastMonth.map((donation) {
+                          return DonationTile(
+                            screenWidth: screenWidth,
+                            rectangleWidthPercentage: rectangleWidthPercentage,
+                            donation: donation,
+                          );
+                        }).toList(),
+                    ],
                   )
-                else
-                  ...c.donationsLastMonth.map((donation) {
-                    return DonationTile(
-                      screenWidth: screenWidth,
-                      rectangleWidthPercentage: rectangleWidthPercentage,
-                      donation: donation,
-                    );
-                  }).toList(),
               ],
             ).paddingSymmetric(horizontal: 20),
           ),
@@ -220,6 +375,9 @@ class DonationTile extends StatelessWidget {
                       fontSize: 12,
                       color: Colors.grey,
                       fontWeight: FontWeight.w400),
+
+                  textAlign: TextAlign.end,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 if (donation.paymentReference != null)
                   Text(
