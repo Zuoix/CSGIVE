@@ -1,0 +1,30 @@
+class AppSize {
+  static const double size1 = 1;
+  static const double size1And5 = 1.5;
+  static const double size1And2 = 1.2;
+  static const double size3 =3;
+  static const double size16 = 16;
+  static const double size12 = 12;
+  static const double size18 = 18;
+  static const double size6 = 6;
+  static const double size7 = 7;
+  static const double size8 = 8;
+  static const double size5 = 5;
+  static const double size4 = 4;
+  static const double size2 = 2;
+  static const double size10 = 10;
+  static const double size15 = 15;
+  static const double size20 = 20;
+  static const double size19 = 19;
+  static const double size40 = 40;
+  static const double size30 = 30;
+  static const double size50 = 50;
+  static const double size60 = 60;
+  static const double size24 = 24;
+  static const double size42 = 42;
+  static const double size100 = 100;
+  static const double size350 = 350;
+  static const double size130 = 130;
+  static const double size250 = 250;
+  static const double size220 = 220;
+}

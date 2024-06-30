@@ -1,0 +1,1 @@
+const kAppName = 'CS Give';

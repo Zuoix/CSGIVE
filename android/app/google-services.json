@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "383987150803",
+    "project_id": "csgive-360fc",
+    "storage_bucket": "csgive-360fc.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:383987150803:android:9ed86cdc2c5ff5ba314926",
+        "android_client_info": {
+          "package_name": "com.conerstone.cs_give"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDI6lXtQhRjtzxzbHr442AICpihPC_ACTM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
